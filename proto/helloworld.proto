@@ -15,3 +15,22 @@ message HelloRequest {
 message HelloResponse {
   string greeting = 1;
 }
+
+service UserService {
+  rpc PostDetails (UserDetailsRequest) returns (UserDetailsResponse);
+  rpc GetMyDetails (GetMyDetailsRequest) returns (UserDetailsResponse);
+}
+
+message UserDetailsRequest {
+  string name = 1;
+  int32 age = 2;
+}
+
+message GetMyDetailsRequest {
+  // Empty message as we retrieve details for the authenticated user
+}
+
+message UserDetailsResponse {
+  string name = 1;
+  int32 age = 2;
+}
