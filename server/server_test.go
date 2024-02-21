@@ -1,61 +1,112 @@
-// server/user_service_test.go
 package main
 
 import (
-	"Demo-go/proto"
 	"context"
-	"fmt"
 	"testing"
 
-	"google.golang.org/grpc"
+	pb "Demo-go/proto"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	testPort = 50052
-)
-
-func TestUserService(t *testing.T) {
-	go func() {
-		StartGRPCServer(testPort)
-	}()
-
-	conn, client, err := createClient(testPort)
+func TestUserAuthentication_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
 	if err != nil {
-		t.Fatalf("Failed to create gRPC client: %v", err)
+		t.Fatalf("failed to create mock: %v", err)
 	}
-	defer conn.Close()
+	defer db.Close()
 
-	t.Run("PostDetails", func(t *testing.T) {
-		postDetailsReq := &proto.UserDetailsRequest{Name: "mj", Age: 25}
-		resp, err := client.PostDetails(context.Background(), postDetailsReq)
-		if err != nil {
-			t.Fatalf("PostDetails failed: %v", err)
-		}
+	server := userServiceServer{db: db}
 
-		expected := &proto.UserDetailsResponse{Name: "mj", Age: 25}
-		if resp.GetName() != expected.GetName() || resp.GetAge() != expected.GetAge() {
-			t.Errorf("Unexpected response. Expected: %+v, Got: %+v", expected, resp)
-		}
+	mock.ExpectExec("INSERT INTO users").
+		WithArgs("testuser", "testpassword", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	resp, err := server.AuthenticateUser(context.Background(), &pb.AuthenticationRequest{
+		Username: "testuser",
+		Password: "testpassword",
 	})
 
-	t.Run("GetMyDetails", func(t *testing.T) {
-		getDetailsReq := &proto.GetMyDetailsRequest{}
-		resp, err := client.GetMyDetails(context.Background(), getDetailsReq)
-		if err != nil {
-			t.Fatalf("GetMyDetails failed: %v", err)
-		}
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.NotEmpty(t, resp.Token)
 
-		expected := &proto.UserDetailsResponse{Name: "mj", Age: 25}
-		if resp.GetName() != expected.GetName() || resp.GetAge() != expected.GetAge() {
-			t.Errorf("Unexpected response. Expected: %+v, Got: %+v", expected, resp)
-		}
-	})
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func createClient(port int) (*grpc.ClientConn, proto.UserServiceClient, error) {
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithInsecure())
+func TestSaveUser_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
 	if err != nil {
-		return nil, nil, err
+		t.Fatalf("failed to create mock: %v", err)
 	}
-	return conn, proto.NewUserServiceClient(conn), nil
+	defer db.Close()
+
+	server := userServiceServer{db: db}
+
+	mock.ExpectExec("UPDATE users").
+		WithArgs("testname", 30, "testtoken").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	resp, err := server.SaveUserDetails(context.Background(), &pb.SaveUserDetailRequest{
+		Name:  "testname",
+		Age:   30,
+		Token: "testtoken",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Success)
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUserName_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	server := userServiceServer{db: db}
+
+	mock.ExpectExec("UPDATE users").
+		WithArgs("newname", "testtoken").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	resp, err := server.UpdateUserName(context.Background(), &pb.UpdateUserNameRequest{
+		NewName: "newname",
+		Token:   "testtoken",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Success)
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserDetails_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	server := userServiceServer{db: db}
+
+	mock.ExpectQuery("SELECT name, age FROM users WHERE token = ?").
+		WithArgs("testtoken").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "age"}).AddRow("testname", 30))
+
+	resp, err := server.GetUserDetails(context.Background(), &pb.UserDetailsRequest{
+		Token: "testtoken",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "testname", resp.Name)
+	assert.Equal(t, int32(30), resp.Age)
+
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

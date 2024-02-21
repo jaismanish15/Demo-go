@@ -1,36 +1,49 @@
 syntax = "proto3";
 
-package helloworld;
+package proto;
 
 option go_package = "Demo-go/proto";
 
-service Greeter {
-  rpc SayHello (HelloRequest) returns (HelloResponse);
-}
-
-message HelloRequest {
-  string name = 1;
-}
-
-message HelloResponse {
-  string greeting = 1;
-}
-
 service UserService {
-  rpc PostDetails (UserDetailsRequest) returns (UserDetailsResponse);
-  rpc GetMyDetails (GetMyDetailsRequest) returns (UserDetailsResponse);
+    rpc AuthenticateUser(AuthenticationRequest) returns (AuthenticationResponse);
+    rpc SaveUserDetails(SaveUserDetailRequest) returns (SavedUserDetailResponse);
+    rpc GetUserDetails(UserDetailsRequest) returns (UserDetailsResponse);
+    rpc UpdateUserName(UpdateUserNameRequest) returns (UpdateUserNameResponse);
+}
+
+message AuthenticationRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message AuthenticationResponse {
+    string token = 1;
+}
+
+message SaveUserDetailRequest {
+    string token = 1;
+    string name = 2;
+    int32 age = 3;
+}
+
+message SavedUserDetailResponse {
+    bool success = 1;
 }
 
 message UserDetailsRequest {
-  string name = 1;
-  int32 age = 2;
-}
-
-message GetMyDetailsRequest {
-  // Empty message as we retrieve details for the authenticated user
+    string token = 1;
 }
 
 message UserDetailsResponse {
-  string name = 1;
-  int32 age = 2;
+    string name = 1;
+    int32 age = 2;
+}
+
+message UpdateUserNameRequest {
+    string token = 1;
+    string newName = 2;
+}
+
+message UpdateUserNameResponse {
+    bool success = 1;
 }
